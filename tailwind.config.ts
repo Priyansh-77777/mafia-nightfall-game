@@ -52,6 +52,22 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				mafia: {
+					DEFAULT: 'hsl(var(--mafia))',
+					foreground: 'hsl(var(--mafia-foreground))'
+				},
+				detective: {
+					DEFAULT: 'hsl(var(--detective))',
+					foreground: 'hsl(var(--detective-foreground))'
+				},
+				doctor: {
+					DEFAULT: 'hsl(var(--doctor))',
+					foreground: 'hsl(var(--doctor-foreground))'
+				},
+				civilian: {
+					DEFAULT: 'hsl(var(--civilian))',
+					foreground: 'hsl(var(--civilian-foreground))'
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',

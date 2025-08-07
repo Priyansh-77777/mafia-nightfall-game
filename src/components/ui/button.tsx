@@ -18,6 +18,11 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        game: "bg-gradient-to-r from-primary to-purple-600 text-primary-foreground hover:from-primary/90 hover:to-purple-600/90 shadow-lg hover:shadow-xl transition-all duration-200",
+        mafia: "bg-mafia text-mafia-foreground hover:bg-mafia/90 shadow-lg",
+        doctor: "bg-doctor text-doctor-foreground hover:bg-doctor/90 shadow-lg",
+        detective: "bg-detective text-detective-foreground hover:bg-detective/90 shadow-lg",
+        civilian: "bg-civilian text-civilian-foreground hover:bg-civilian/90 shadow-lg",
       },
       size: {
         default: "h-10 px-4 py-2",
