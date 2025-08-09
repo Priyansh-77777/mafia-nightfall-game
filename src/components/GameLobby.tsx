@@ -6,6 +6,8 @@ import { Separator } from '@/components/ui/separator';
 import { useGameState } from '@/hooks/useGameState';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Crown, Users, Play } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import type { Role } from '@/types/game';
 
 interface GameLobbyProps {
   roomCode: string;
@@ -75,19 +77,47 @@ export const GameLobby = ({ roomCode, playerId, onGameStart }: GameLobbyProps) =
       return;
     }
 
-    // TODO: Check if all players are ready
-    
     try {
-      // TODO: Implement game start logic
-      toast({
-        title: "Starting game...",
-        description: "Assigning roles and beginning the night phase"
-      });
-    } catch (error) {
+      // Assign roles
+      const total = players.length;
+      const mafiaCount = Math.floor(total / 3);
+      const doctorCount = 1;
+      const detectiveCount = 1;
+      const civiliansCount = Math.max(0, total - mafiaCount - doctorCount - detectiveCount);
+
+      const roles: Role[] = [
+        ...Array(mafiaCount).fill('mafia' as Role),
+        ...Array(doctorCount).fill('doctor' as Role),
+        ...Array(detectiveCount).fill('detective' as Role),
+        ...Array(civiliansCount).fill('civilian' as Role),
+      ];
+
+      const shuffled = [...players].sort(() => Math.random() - 0.5);
+      const updates = shuffled.slice(0, roles.length).map((p, i) => ({ id: p.id, role: roles[i] }));
+
+      const { error: assignError } = await supabase.from('players').upsert(updates);
+      if (assignError) throw assignError;
+
+      // Move to night phase
+      const phaseEnd = new Date(Date.now() + 60_000).toISOString();
+      const { error: gameUpdateError } = await supabase
+        .from('games')
+        .update({ status: 'starting', current_phase: 'night', phase_end_time: phaseEnd })
+        .eq('id', game.id);
+      if (gameUpdateError) throw gameUpdateError;
+
+      await supabase.from('game_log').insert([
+        { game_id: game.id, message: '🃏 Roles have been assigned. Keep them secret!', message_type: 'info' },
+        { game_id: game.id, message: '🌙 Night falls. Special roles, perform your actions.', message_type: 'info' },
+      ] as any);
+
+      toast({ title: 'Game started', description: 'Night phase has begun.' });
+      onGameStart();
+    } catch (error: any) {
       console.error('Error starting game:', error);
+      toast({ title: 'Failed to start', description: error.message || 'Please try again', variant: 'destructive' });
     }
   };
-
   if (!game || !currentPlayer) {
     return (
       <div className="min-h-screen flex items-center justify-center">
