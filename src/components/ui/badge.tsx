@@ -15,7 +15,15 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
-      },
+        mafia:
+          "border-transparent bg-mafia text-mafia-foreground hover:bg-mafia/90",
+        doctor:
+          "border-transparent bg-doctor text-doctor-foreground hover:bg-doctor/90",
+        detective:
+          "border-transparent bg-detective text-detective-foreground hover:bg-detective/90",
+        civilian:
+          "border-transparent bg-civilian text-civilian-foreground hover:bg-civilian/90",
+      }
     },
     defaultVariants: {
       variant: "default",

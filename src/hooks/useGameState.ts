@@ -95,7 +95,6 @@ export const useGameState = (roomCode?: string) => {
         .from('games')
         .insert({
           room_code: roomCode,
-          host_id: '', // Will be updated after player creation
           status: 'waiting'
         })
         .select()

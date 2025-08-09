@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useGameState } from '@/hooks/useGameState';
 import { Player, ROLE_DESCRIPTIONS, ROLE_EMOJIS } from '@/types/game';
-import { Moon, Sun, Vote, Eye, Heart, Skull } from 'lucide-react';
+import { Moon, Sun, Gavel, Eye, Heart, Skull } from 'lucide-react';
 
 interface GameRoomProps {
   roomCode: string;
@@ -91,7 +91,7 @@ export const GameRoom = ({ roomCode, playerId }: GameRoomProps) => {
       }
     }
     
-    return <Vote className="h-4 w-4" />;
+    return <Gavel className="h-4 w-4" />;
   };
 
   const submitAction = () => {
