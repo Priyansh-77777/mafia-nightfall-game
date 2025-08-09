@@ -14,7 +14,7 @@ interface GameLobbyProps {
 }
 
 export const GameLobby = ({ roomCode, playerId, onGameStart }: GameLobbyProps) => {
-  const { game, players, currentPlayer, fetchGameData } = useGameState(roomCode);
+  const { game, players, currentPlayer, fetchGameData } = useGameState(roomCode, playerId);
   const { toast } = useToast();
   const [isReady, setIsReady] = useState(false);
 

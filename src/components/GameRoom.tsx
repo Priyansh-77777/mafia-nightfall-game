@@ -14,7 +14,7 @@ interface GameRoomProps {
 }
 
 export const GameRoom = ({ roomCode, playerId }: GameRoomProps) => {
-  const { game, players, currentPlayer, gameLog, fetchGameData } = useGameState(roomCode);
+  const { game, players, currentPlayer, gameLog, fetchGameData } = useGameState(roomCode, playerId);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
 
   useEffect(() => {

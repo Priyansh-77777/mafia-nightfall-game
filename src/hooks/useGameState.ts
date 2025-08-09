@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Game, Player, Vote, GameLogEntry, GameState } from '@/types/game';
 import { useToast } from '@/hooks/use-toast';
 
-export const useGameState = (roomCode?: string) => {
+export const useGameState = (roomCode?: string, currentPlayerId?: string) => {
   const [gameState, setGameState] = useState<GameState>({
     game: null,
     players: [],
@@ -62,6 +62,9 @@ export const useGameState = (roomCode?: string) => {
         players: players || [],
         votes: votes || [],
         gameLog: gameLog || [],
+        currentPlayer: currentPlayerId
+          ? (players?.find((p: any) => p.id === currentPlayerId) || prev.currentPlayer)
+          : prev.currentPlayer,
         isLoading: false
       }));
 
