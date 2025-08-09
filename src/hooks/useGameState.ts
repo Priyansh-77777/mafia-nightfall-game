@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Game, Player, Vote, GameLogEntry, GameState } from '@/types/game';
@@ -102,6 +103,8 @@ export const useGameState = (roomCode?: string) => {
 
       if (gameError) throw gameError;
 
+      if (!game) throw new Error('Failed to create game');
+
       // Create host player
       const { data: player, error: playerError } = await supabase
         .from('players')
@@ -114,6 +117,8 @@ export const useGameState = (roomCode?: string) => {
         .single();
 
       if (playerError) throw playerError;
+
+      if (!player) throw new Error('Failed to create player');
 
       // Update game with host_id
       const { error: updateError } = await supabase
@@ -168,6 +173,8 @@ export const useGameState = (roomCode?: string) => {
 
       if (gameError) throw gameError;
 
+      if (!game) throw new Error('Game not found');
+
       if (game.status !== 'waiting') {
         throw new Error('Game has already started');
       }
@@ -197,6 +204,8 @@ export const useGameState = (roomCode?: string) => {
         .single();
 
       if (playerError) throw playerError;
+
+      if (!player) throw new Error('Failed to create player');
 
       // Add join message
       await supabase
