@@ -302,10 +302,64 @@ export const useGameState = (roomCode?: string, currentPlayerId?: string) => {
     };
   }, [roomCode, gameState.game?.id, fetchGameData]);
 
+  const addAIPlayers = useCallback(async (minPlayers: number = 7) => {
+    try {
+      // Ensure game is loaded
+      if (!gameState.game) {
+        if (roomCode) {
+          await fetchGameData(roomCode);
+        } else {
+          throw new Error('No room code provided');
+        }
+      }
+
+      const gameId = gameState.game?.id;
+      if (!gameId) throw new Error('Game not loaded');
+
+      const currentCount = gameState.players.length;
+      const toAdd = Math.max(0, minPlayers - currentCount);
+      if (toAdd <= 0) return 0;
+
+      const existingNames = new Set(gameState.players.map(p => p.name));
+      const pool = ['Aiden','Nova','Blitz','Echo','Zephyr','Orion','Rex','Aura','Pixel','Bolt','Vega','Kai','Zara','Milo','Ivy'];
+
+      const rows = Array.from({ length: toAdd }).map((_, i) => {
+        let base = pool[(i + Math.floor(Math.random()*pool.length)) % pool.length];
+        let name = `🤖 ${base}`;
+        let suffix = 1;
+        while (existingNames.has(name)) {
+          name = `🤖 ${base} ${suffix++}`;
+        }
+        existingNames.add(name);
+        return { game_id: gameId, name, is_host: false, is_ready: true } as any;
+      });
+
+      const { error } = await supabase.from('players').insert(rows).select();
+      if (error) throw error;
+
+      await supabase.from('game_log').insert({
+        game_id: gameId,
+        message: `🤖 Added ${toAdd} AI player(s) to reach ${minPlayers}.`,
+        message_type: 'info'
+      } as any);
+
+      await fetchGameData(roomCode!);
+      return toAdd;
+    } catch (error: any) {
+      toast({
+        title: 'AI fill failed',
+        description: error.message || 'Unable to add AI players',
+        variant: 'destructive'
+      });
+      throw error;
+    }
+  }, [gameState.game, gameState.players, roomCode, fetchGameData, toast]);
+
   return {
     ...gameState,
     createGame,
     joinGame,
-    fetchGameData
+    fetchGameData,
+    addAIPlayers
   };
 };

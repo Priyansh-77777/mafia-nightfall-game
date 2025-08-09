@@ -14,9 +14,10 @@ interface GameLobbyProps {
 }
 
 export const GameLobby = ({ roomCode, playerId, onGameStart }: GameLobbyProps) => {
-  const { game, players, currentPlayer, fetchGameData } = useGameState(roomCode, playerId);
+  const { game, players, currentPlayer, fetchGameData, addAIPlayers } = useGameState(roomCode, playerId);
   const { toast } = useToast();
   const [isReady, setIsReady] = useState(false);
+  const [isFilling, setIsFilling] = useState(false);
 
   useEffect(() => {
     fetchGameData(roomCode);
@@ -43,6 +44,23 @@ export const GameLobby = ({ roomCode, playerId, onGameStart }: GameLobbyProps) =
       title: isReady ? "Not ready" : "Ready!",
       description: isReady ? "You are not ready to start" : "You are ready to start the game"
     });
+  };
+
+  const fillWithAI = async () => {
+    if (!game || !currentPlayer?.is_host) return;
+    setIsFilling(true);
+    try {
+      const added = await addAIPlayers?.(7);
+      toast({
+        title: 'AI players added',
+        description: `Added ${added || 0} AI player(s)`
+      });
+    } catch (error: any) {
+      console.error('Error adding AI players:', error);
+      toast({ title: 'Failed to add AI', description: error.message || 'Please try again', variant: 'destructive' });
+    } finally {
+      setIsFilling(false);
+    }
   };
 
   const startGame = async () => {
@@ -206,9 +224,20 @@ export const GameLobby = ({ roomCode, playerId, onGameStart }: GameLobbyProps) =
                     Start Game
                   </Button>
                   {!canStartGame && (
-                    <p className="text-xs text-muted-foreground mt-2 text-center">
-                      Need at least 7 players
-                    </p>
+                    <>
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        Need at least 7 players
+                      </p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={fillWithAI}
+                        disabled={isFilling}
+                      >
+                        {isFilling ? "Adding AI..." : "Add AI Players"}
+                      </Button>
+                    </>
                   )}
                 </CardContent>
               </Card>
