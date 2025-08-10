@@ -6,6 +6,8 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { useGameState } from '@/hooks/useGameState';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { Player, ROLE_DESCRIPTIONS, ROLE_EMOJIS } from '@/types/game';
 import { Moon, Sun, Gavel, Eye, Heart, Skull } from 'lucide-react';
 
@@ -17,6 +19,7 @@ interface GameRoomProps {
 export const GameRoom = ({ roomCode, playerId }: GameRoomProps) => {
   const { game, players, currentPlayer, gameLog, fetchGameData } = useGameState(roomCode, playerId);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchGameData(roomCode);
@@ -98,17 +101,212 @@ export const GameRoom = ({ roomCode, playerId }: GameRoomProps) => {
     return <Gavel className="h-4 w-4" />;
   };
 
-  const submitAction = () => {
-    if (!selectedTarget) return;
-    
-    // TODO: Implement action submission
-    console.log('Submitting action:', {
-      type: currentPlayer.role,
-      target: selectedTarget,
-      phase: game.current_phase
-    });
-    
-    setSelectedTarget(null);
+  const pickRandom = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+
+  const determineVoteType = () => {
+    if (isNightPhase) {
+      if (currentPlayer.role === 'mafia') return 'mafia_kill' as const;
+      if (currentPlayer.role === 'doctor') return 'doctor_save' as const;
+      if (currentPlayer.role === 'detective') return 'detective_investigate' as const;
+    }
+    return 'eliminate' as const;
+  };
+
+  const autoPlayAI = async () => {
+    const aiPlayers = players.filter(p => p.is_alive && !p.is_ready && p.name.startsWith('🤖'));
+    if (aiPlayers.length === 0) return;
+
+    const alive = players.filter(p => p.is_alive);
+
+    await Promise.all(
+      aiPlayers.map(async (ai) => {
+        let targetPool: Player[] = [];
+        if (isNightPhase) {
+          if (ai.role === 'mafia') {
+            targetPool = alive.filter(p => p.role !== 'mafia');
+          } else if (ai.role === 'doctor') {
+            targetPool = alive;
+          } else if (ai.role === 'detective') {
+            targetPool = alive.filter(p => p.id !== ai.id);
+          } else {
+            return;
+          }
+        } else {
+          targetPool = alive.filter(p => p.id !== ai.id);
+        }
+
+        if (targetPool.length === 0) return;
+        const target = pickRandom(targetPool);
+
+        const vote_type = isNightPhase
+          ? (ai.role === 'mafia' ? 'mafia_kill' : ai.role === 'doctor' ? 'doctor_save' : 'detective_investigate')
+          : 'eliminate';
+
+        await supabase.from('votes').insert({
+          game_id: game.id,
+          voter_id: ai.id,
+          target_id: target.id,
+          vote_type
+        } as any);
+        await supabase.from('players').update({ is_ready: true }).eq('id', ai.id);
+      })
+    );
+  };
+
+  const progressPhaseIfReady = async () => {
+    const alive = players.filter(p => p.is_alive);
+    const readyCount = alive.filter(p => p.is_ready).length;
+    if (readyCount !== alive.length) return;
+
+    if (!currentPlayer.is_host) return;
+
+    const declareWinner = async (winner: 'mafia' | 'town') => {
+      await supabase.from('games').update({ status: 'ended', current_phase: 'ended', winner }).eq('id', game.id);
+      await supabase.from('game_log').insert({
+        game_id: game.id,
+        message: winner === 'mafia' ? '😈 Mafia wins!' : '🛡️ Town wins!',
+        message_type: 'victory'
+      } as any);
+    };
+
+    const fetchVotes = async (types: string[]) => {
+      const { data } = await supabase
+        .from('votes')
+        .select('*')
+        .eq('game_id', game.id)
+        .in('vote_type', types as any);
+      return (data || []) as any[];
+    };
+
+    const resetReadinessAndVotes = async (nextPhase: 'night' | 'day') => {
+      await supabase.from('players').update({ is_ready: false }).eq('game_id', game.id).eq('is_alive', true);
+      await supabase.from('votes').delete().eq('game_id', game.id);
+      await supabase.from('games').update({ current_phase: nextPhase }).eq('id', game.id);
+      await supabase.from('game_log').insert({
+        game_id: game.id,
+        message: nextPhase === 'day' ? '☀️ Day begins.' : '🌙 Night falls.',
+        message_type: 'info'
+      } as any);
+    };
+
+    if (isNightPhase) {
+      const nightVotes = await fetchVotes(['mafia_kill', 'doctor_save']);
+      const tally = (type: string) => {
+        const counts: Record<string, number> = {};
+        nightVotes.filter(v => v.vote_type === type && v.target_id).forEach(v => {
+          counts[v.target_id!] = (counts[v.target_id!] || 0) + 1;
+        });
+        const entries = Object.entries(counts);
+        if (entries.length === 0) return null;
+        entries.sort((a,b)=> b[1]-a[1]);
+        const topScore = entries[0][1];
+        const topTargets = entries.filter(e=> e[1] === topScore).map(e=> e[0]);
+        return pickRandom(topTargets);
+      };
+      const mafiaTargetId = tally('mafia_kill');
+      const doctorSaveId = tally('doctor_save');
+
+      if (mafiaTargetId && mafiaTargetId !== doctorSaveId) {
+        await supabase.from('players').update({ is_alive: false }).eq('id', mafiaTargetId);
+        const victim = players.find(p => p.id === mafiaTargetId);
+        await supabase.from('game_log').insert({
+          game_id: game.id,
+          message: `💀 ${victim?.name || 'A player'} was eliminated during the night.`,
+          message_type: 'death'
+        } as any);
+      } else {
+        await supabase.from('game_log').insert({
+          game_id: game.id,
+          message: `🛡️ No one was eliminated during the night.`,
+          message_type: 'info'
+        } as any);
+      }
+
+      const { data: freshPlayers } = await supabase
+        .from('players')
+        .select('*')
+        .eq('game_id', game.id)
+        .eq('is_alive', true);
+      const m = (freshPlayers || []).filter((p: any) => p.role === 'mafia').length;
+      const t = (freshPlayers || []).length - m;
+      if (m === 0) return await declareWinner('town');
+      if (m >= t) return await declareWinner('mafia');
+
+      await resetReadinessAndVotes('day');
+    } else {
+      const dayVotes = await fetchVotes(['eliminate']);
+      const counts: Record<string, number> = {};
+      dayVotes.filter(v => v.target_id).forEach(v => {
+        counts[v.target_id!] = (counts[v.target_id!] || 0) + 1;
+      });
+      const entries = Object.entries(counts);
+      if (entries.length > 0) {
+        entries.sort((a,b)=> b[1]-a[1]);
+        const topScore = entries[0][1];
+        const topTargets = entries.filter(e=> e[1] === topScore).map(e=> e[0]);
+        const eliminatedId = pickRandom(topTargets);
+        if (eliminatedId) {
+          await supabase.from('players').update({ is_alive: false }).eq('id', eliminatedId);
+          const victim = players.find(p => p.id === eliminatedId);
+          await supabase.from('game_log').insert({
+            game_id: game.id,
+            message: `⚖️ ${victim?.name || 'A player'} was eliminated by vote.`,
+            message_type: 'death'
+          } as any);
+        }
+      } else {
+        await supabase.from('game_log').insert({
+          game_id: game.id,
+          message: `🤷 No elimination today.`,
+          message_type: 'info'
+        } as any);
+      }
+
+      const { data: freshPlayers } = await supabase
+        .from('players')
+        .select('*')
+        .eq('game_id', game.id)
+        .eq('is_alive', true);
+      const m = (freshPlayers || []).filter((p: any) => p.role === 'mafia').length;
+      const t = (freshPlayers || []).length - m;
+      if (m === 0) return await declareWinner('town');
+      if (m >= t) return await declareWinner('mafia');
+
+      await resetReadinessAndVotes('night');
+    }
+  };
+
+  const submitAction = async () => {
+    if (!selectedTarget || !currentPlayer?.is_alive || isGameEnded) return;
+
+    const vote_type = determineVoteType();
+    try {
+      await supabase.from('votes').insert({
+        game_id: game.id,
+        voter_id: playerId,
+        target_id: selectedTarget,
+        vote_type
+      } as any);
+
+      await supabase
+        .from('players')
+        .update({ is_ready: true, last_active: new Date().toISOString() })
+        .eq('id', playerId);
+
+      await supabase.from('game_log').insert({
+        game_id: game.id,
+        message: `${currentPlayer.name} submitted an action.`,
+        message_type: 'action'
+      } as any);
+
+      await autoPlayAI();
+      await progressPhaseIfReady();
+
+      setSelectedTarget(null);
+      toast({ title: 'Action submitted', description: 'Waiting for others...' });
+    } catch (e: any) {
+      toast({ title: 'Failed to submit', description: e.message || 'Please try again.', variant: 'destructive' });
+    }
   };
 
   return (
