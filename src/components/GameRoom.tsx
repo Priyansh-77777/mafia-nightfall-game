@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Progress } from '@/components/ui/progress';
 import { useGameState } from '@/hooks/useGameState';
 import { Player, ROLE_DESCRIPTIONS, ROLE_EMOJIS } from '@/types/game';
 import { Moon, Sun, Gavel, Eye, Heart, Skull } from 'lucide-react';
@@ -40,6 +41,9 @@ export const GameRoom = ({ roomCode, playerId }: GameRoomProps) => {
   const alivePlayers = players.filter(p => p.is_alive);
   const deadPlayers = players.filter(p => !p.is_alive);
 
+  const totalAlive = alivePlayers.length;
+  const readyAliveCount = alivePlayers.filter(p => p.is_ready).length;
+  const allAliveReady = totalAlive > 0 && readyAliveCount === totalAlive;
   const canAct = () => {
     if (!currentPlayer.is_alive || isGameEnded) return false;
     
@@ -129,6 +133,18 @@ export const GameRoom = ({ roomCode, playerId }: GameRoomProps) => {
             <CardDescription>
               Room: <span className="font-mono">{roomCode}</span>
             </CardDescription>
+            <div className="mt-2 flex flex-col items-center gap-2">
+              <Progress
+                value={Math.round((readyAliveCount / (totalAlive || 1)) * 100)}
+                aria-label={`Ready ${readyAliveCount}/${totalAlive}`}
+              />
+              <div className="text-xs text-muted-foreground">
+                Ready {readyAliveCount}/{totalAlive}
+              </div>
+              {allAliveReady && (
+                <Badge variant="secondary">All players ready</Badge>
+              )}
+            </div>
           </CardHeader>
         </Card>
 
