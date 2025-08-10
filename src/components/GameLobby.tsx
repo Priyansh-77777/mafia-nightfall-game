@@ -95,8 +95,14 @@ export const GameLobby = ({ roomCode, playerId, onGameStart }: GameLobbyProps) =
       const shuffled = [...players].sort(() => Math.random() - 0.5);
       const updates = shuffled.slice(0, roles.length).map((p, i) => ({ id: p.id, role: roles[i] }));
 
-      const { error: assignError } = await supabase.from('players').upsert(updates);
-      if (assignError) throw assignError;
+      // Update roles per player to avoid accidental inserts (which would fail due to NOT NULL game_id)
+      const updateResults = await Promise.all(
+        updates.map((u) =>
+          supabase.from('players').update({ role: u.role }).eq('id', u.id)
+        )
+      );
+      const updateErrors = updateResults.map((r: any) => r.error).filter(Boolean);
+      if (updateErrors.length) throw updateErrors[0];
 
       // Move to night phase
       const phaseEnd = new Date(Date.now() + 60_000).toISOString();
